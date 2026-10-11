@@ -2,7 +2,7 @@
 
 Public monorepo for a tarot-reading client booking website, designed to launch with a small operating footprint and grow only when business needs justify it.
 
-**Status: initial scaffold, not a launched client product.** The web app renders a responsive starter page and links to a configured Cal.com event. The API exposes a health endpoint. The Go process demonstrates graceful shutdown. Service prices, durations, client biography, availability, payment rules, and testimonials have not been supplied or invented. PostgreSQL, administration, webhook processing, AI analytics, and background jobs are planned, not completed.
+**Status: initial scaffold, not a launched client product.** The web app renders a complete editorial homepage with custom illustrations, reflection prompts, mobile navigation, and expandable FAQs and links to a configured Cal.com event. The API exposes a health endpoint. The Go process demonstrates graceful shutdown. Service prices, durations, client biography, availability, payment rules, and testimonials have not been supplied or invented. PostgreSQL, administration, webhook processing, AI analytics, and background jobs are planned, not completed.
 
 ## Repository layout
 ```text
@@ -25,7 +25,7 @@ cp .env.example .env.local
 npm ci
 npm run dev
 ```
-Open http://localhost:3000. An unset or invalid URL displays a booking preparation message; the app accepts HTTPS `cal.com` URLs with an owner and event path. Restart the dev server after changing environment variables. Production changes require a rebuild. No Cal.com API key is needed for the phase 1 link.
+Open http://localhost:3000. An unset or invalid URL displays a booking preparation message; the app accepts HTTPS `cal.com` URLs with an owner path, optionally followed by an event. Restart the dev server after changing environment variables. Production changes require a rebuild. No Cal.com API key is needed for the phase 1 link.
 
 ```sh
 npm run lint
