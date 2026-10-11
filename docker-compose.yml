@@ -1,0 +1,14 @@
+# Development only. Optional profiles keep phase 1 free of idle services.
+services:
+  api:
+    profiles: [backend]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    ports: ["127.0.0.1:8000:8000"]
+  worker:
+    profiles: [worker]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/worker.Dockerfile
+    init: true
