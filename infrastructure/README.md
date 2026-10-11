@@ -1,10 +1,5 @@
 # Infrastructure
-Phase 1 deploys only `apps/web` and uses hosted Cal.com. No cloud resources are provisioned by this repository.
 
-Optional local scaffolds:
-```sh
-docker compose --profile backend up --build
-# Separate terminal, only to demonstrate process lifecycle:
-docker compose --profile worker up --build
-```
-The API binds only to localhost on the host machine. These containers are not a production deployment stack. Add reviewed database migrations, secrets, private networking, health/readiness checks, image digests, backups, and deployment automation when phases 2/3 are approved. No PostgreSQL container is started yet because no persistence is implemented.
+`docker-compose.yml` starts PostgreSQL, a one-shot migration service, FastAPI and the Go worker. `docker-compose.production.yml` adds Next.js and Caddy HTTPS, removes the local API port, and sets production session security. Optional AI profile adds internal Ollama; weights require an explicit pull.
+
+Read [Docker deployment](../docs/DOCKER_DEPLOYMENT.md) before starting. Set distinct hexadecimal database secrets, webhook secret, real event IDs, and server domain. There are no default production credentials. PostgreSQL initialization scripts run only for a fresh volume; rotation needs SQL plus service recreation. Backups are required separately from volume persistence.

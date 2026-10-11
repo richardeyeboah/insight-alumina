@@ -1,14 +1,65 @@
-# Development only. Optional profiles keep phase 1 free of idle services.
+# Local development: cp .env.example .env; set DATABASE_PASSWORD and CAL_WEBHOOK_SECRET.
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: insight
+      POSTGRES_USER: insight
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env}
+      APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD:?Set APP_DATABASE_PASSWORD}
+      WORKER_DATABASE_PASSWORD: ${WORKER_DATABASE_PASSWORD:?Set WORKER_DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-roles.sh:/docker-entrypoint-initdb.d/01-roles.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U insight -d insight"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  migrate:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    command: [python, -m, app.manage, migrate]
+    environment:
+      DATABASE_URL: postgresql://insight:${DATABASE_PASSWORD}@db:5432/insight
+    depends_on:
+      db:
+        condition: service_healthy
   api:
-    profiles: [backend]
     build:
       context: .
       dockerfile: infrastructure/docker/api.Dockerfile
     ports: ["127.0.0.1:8000:8000"]
+    environment:
+      DATABASE_URL: postgresql://insight_api:${APP_DATABASE_PASSWORD}@db:5432/insight
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      APP_ENV: development
+      CAL_WEBHOOK_SECRET: ${CAL_WEBHOOK_SECRET:?Set CAL_WEBHOOK_SECRET}
+      CAL_EVENT_TYPE_IDS: ${CAL_EVENT_TYPE_IDS:-}
+      AI_ANALYTICS_ENABLED: ${AI_ANALYTICS_ENABLED:-false}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
   worker:
-    profiles: [worker]
     build:
       context: .
       dockerfile: infrastructure/docker/worker.Dockerfile
     init: true
+    stop_grace_period: 90s
+    environment:
+      DATABASE_URL: postgresql://insight_worker:${WORKER_DATABASE_PASSWORD}@db:5432/insight
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      AI_ANALYTICS_ENABLED: ${AI_ANALYTICS_ENABLED:-false}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  ollama:
+    profiles: [ai]
+    image: ollama/ollama:latest
+    volumes: [ollama_models:/root/.ollama]
+volumes:
+  postgres_data:
+  ollama_models:

@@ -1,22 +1,25 @@
-# API
+# API contracts
 
-## Implemented now
-Run the API at `http://127.0.0.1:8000` using the service README. These are scaffold operations only:
-- `GET /healthz` -> `200 application/json`: `{"status":"ok","service":"api"}`. Liveness only; no database/queue readiness is implied.
-- `GET /docs` -> interactive Swagger UI.
-- `GET /redoc` -> ReDoc documentation.
-- `GET /openapi.json` -> generated OpenAPI schema.
+## Operations
+GET /healthz: liveness. GET /readyz: database/schema check. Docs/OpenAPI are disabled with APP_ENV=production.
 
-No authentication is needed for liveness. There are no business endpoints, booking creation endpoints, database queries, webhook receivers, or AI calls. Do not expose future admin routes until authentication/authorization is implemented. Disable or protect interactive docs when business endpoints are introduced in production.
+## Administration
+The Next.js `/api/admin/*` server proxy forwards approved routes to server-only API_BASE_URL; the browser never receives backend credentials. API paths:
+- POST /v1/admin/login: username/password JSON; Argon2 verification, attempt budget, 8-hour HttpOnly SameSite=strict cookie (Secure in production).
+- GET /v1/admin/session: authenticated username and AI availability.
+- POST /v1/admin/logout: revoke current session.
+- GET /v1/admin/metrics: current booking counts, recent daily appointment counts in UTC, job-state counts, latest worker snapshot, and source limitations.
+- GET /v1/admin/bookings: latest 100 minimal records; no attendee details.
+- GET /v1/admin/jobs: latest 50 job states/attempts and safe failure messages.
+- POST /v1/admin/jobs/{id}/retry: failed jobs only; audited.
+- POST /v1/admin/summary: opt-in only; one deduplicated job per UTC day; 202.
+- GET /v1/admin/summary: latest generated summary with model and timestamp.
 
-## Proposed phase 2 contract (not implemented)
-`POST /v1/webhooks/cal`: provider-to-server only. Confirm event names, signature header/algorithm, retry semantics, and payload schemas using current Cal.com documentation before implementation. Verify the signature with the configured secret over exact raw body bytes and compare in constant time; never rely on browser redirects as proof of booking. Enforce HTTPS, payload size limits, schema checks, deduplication, and safe log redaction.
+All reads except liveness require a valid server session. Admin POSTs require exact configured APP_ORIGIN. Login failures return generic 401; attempt budget returns 429; unavailable DB 503; disabled AI or invalid retry 409. The frontend proxy caps request bodies at 8 KiB and never caches responses.
 
-Target semantics: `204` only after durable transactional receipt, including harmless already-persisted duplicates; `400` invalid payload; `401` failed signature; `413` too large; `503` temporary persistence outage. Reconcile missing events with Cal.com. Specify the final deduplication/ordering strategy using actual fixtures before exposing this route.
+## Cal.com webhook
+POST /v1/webhooks/cal receives standard versioned BOOKING_CREATED/RESCHEDULED/CANCELLED/REQUESTED/REJECTED payloads. Requires configured event type allowlist and a >=32-character secret. Verifies x-cal-signature-256 HMAC-SHA256 against raw bytes using constant-time comparison before parsing. Payloads are limited to 64 KiB. Unknown versions/events/malformed times fail closed. Extra personal fields are ignored and not persisted.
 
-`GET /v1/admin/metrics` (proposed): authenticated, authorized aggregate reporting. Define date/timezone filters, allowed roles, error structure, rate limits, and retention before implementation. No customer record listing is promised by the scaffold.
+Receipts, minimal booking state, and jobs commit in one transaction before 204. Normalized event identity deduplicates delivery; event timestamps prevent older events overwriting newer state, with cancellation winning equal timestamps. Reschedule supersedes the previous UID. Financial/payment status is not inferred. Cal.com remains authoritative; lost events or historic bookings require an explicit reconciliation/import procedure, which is not implemented here.
 
-## External Cal.com API
-Phase 1 uses a hosted booking URL and requires no API credentials. Future server-side integration should use API v2, selected authentication scopes, and required endpoint-specific version headers. Never expose Cal.com keys in `NEXT_PUBLIC_*`, browser code, commits, or logs. OAuth is recommended by Cal.com for integrations; decide the appropriate mechanism for the client-owned account before implementation.
-
-Reference: [Cal.com API v2 introduction](https://cal.com/docs/api-reference/v2/introduction). API availability and privileges depend on provider/account configuration; recheck before phase 2.
+Reference: https://cal.com/docs/developing/guides/automation/webhooks

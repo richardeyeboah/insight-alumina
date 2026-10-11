@@ -1,27 +1,16 @@
 # Deployment and operating cost
 
-## Local development
-Node.js 22 LTS/npm for the website, Python 3.11+ for the optional API, Go 1.24+ for the optional worker, Docker Compose for container demonstrations. Follow component READMEs; no cloud account or database is required to run the scaffold. Copy `.env.example` to the location expected by each tool; root `.env` is not read automatically by Next.js.
+## Current state
+The booking frontend is deployed at https://insight-alumina.vercel.app/. The PostgreSQL/API/worker/admin integration is implemented and prepared for Docker deployment; it has not been provisioned on a production server. Frontend deployment alone does not run these services.
 
-## Phase 1 production: web only
-1. Confirm client-owned GitHub/hosting/Cal.com/domain accounts and a commercially permitted hosting plan. **Vercel Hobby is noncommercial and unsuitable for this client business website.** Use Vercel Pro or evaluate another commercially permitted Next.js host. [Official restriction](https://vercel.com/docs/plans/hobby).
-2. Import this GitHub repository into Vercel, set root directory to `apps/web`, use the Next.js preset, Node 22, `npm ci` install, and `npm run build`. Do not deploy the repository root as a Next.js project.
-3. Set `NEXT_PUBLIC_CAL_BOOKING_URL` to the client's confirmed event URL in the production environment. It is public and baked into the build; redeploy after changes. Give previews separate test booking URLs or leave them unset.
-4. Configure the client domain and DNS, verify TLS, and check the published site from desktop/mobile. Confirm actual bookings, notifications, rescheduling, cancellation, and calendar conflicts.
-5. Restrict preview access when unpublished client content is present. Establish least-privilege team roles and billing alerts. Configure branch protections to require CI and review; these settings are not created by the scaffold.
-6. Record the known-good deployment and rollback through the host's deployment history. Roll back both deployment and relevant public booking configuration if necessary.
+Follow [Docker deployment](DOCKER_DEPLOYMENT.md) for the full stack, HTTPS, first admin creation, Cal.com webhooks, optional Ollama, backups, and operations. The deployment includes a standalone Next.js container. Keeping Vercel for the frontend requires the separately documented protected API ingress and server-only API_BASE_URL configuration.
 
-No production deployment, subscription purchase, domain registration, Cal account setup, or branch protections are performed by this repository.
+## Frontend hosting
+For Vercel, use apps/web as root, Next.js preset, Node 22, npm ci, and npm run build. Set NEXT_PUBLIC_CAL_BOOKING_URL to the approved profile/event URL and redeploy after changes. Verify mobile booking, calendar conflicts, confirmation, cancellation, and rescheduling using approved test appointments. Custom domain/DNS and client account setup remain operator tasks.
 
-For another Node host, build in `apps/web`, run `npm start` behind HTTPS with the host's provided port and environment. Confirm current platform requirements and commercial terms. The Docker files here cover optional backend services, not the web app.
+**Vercel Hobby is intended for noncommercial use.** Before commercial operation, choose a commercially permitted plan or host. No subscription upgrade or purchase is performed by this code. See [Vercel Hobby terms](https://vercel.com/docs/plans/hobby).
 
-## Phase 2 production (future)
-Deploy FastAPI as an independently managed service behind HTTPS, and use managed PostgreSQL with private connectivity where supported. Add schema migrations as a controlled release step, authenticated admin access, connection pooling, DB readiness, rate/body limits, signature verification, and backup/restore drills. Store secrets in provider secret management, rotate them, and separate staging from production. Protect API documentation after business endpoints are added. CORS, if required, should allow only known web origins; it is not authorization.
+## Costs and release controls
+Budget for server/domain/scheduling services, database storage and off-server backups, monitoring, bandwidth, and any payment-provider fees. Optional model serving adds memory/CPU/GPU requirements. No fixed prices or zero-cost commercial hosting claims are made; check vendor quotes and licenses before purchasing. Set spending alerts and resource limits.
 
-## Phase 3 production (future)
-Deploy Go to a long-running container/worker host appropriate for queue consumption. Do not assume a request-based web function can run an indefinite worker. Use durable jobs, bounded resources, graceful shutdown, health/readiness checks, immutable image digests, logs/metrics/alerts, dead-letter handling, and staged releases. Database migrations must remain backward compatible during rollout and rollback.
-
-## Cost controls
-Phase 1 pays only for necessary hosting/domain/scheduling and any configured payment fees. Confirm plan limits and per-seat/usage billing, custom domain renewal, Cal feature availability, tax, and payment fees using current vendor quotes. No fixed or zero-cost commercial budget is asserted.
-
-Phase 2 adds API/database compute, storage, backups, network egress, and optional analytics/provider usage. Phase 3 may add queue/worker/monitoring costs. Set monthly budgets and alerts, cap AI requests/tokens, monitor GitHub Actions minutes for private repos, and avoid provisioning idle services before their acceptance gates. Recheck pricing at purchase time.
+Require reviewed CI and least-privilege access. Keep staging separate from production, test backup restoration, record a known-good release, and use backward-compatible migrations. See the Docker guide for rollback and secret rotation. The example images use mutable tags; pin reviewed digests and scan them for production releases.

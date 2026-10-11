@@ -28,6 +28,19 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: '1'
   api:
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test-only-ci
+          POSTGRES_DB: insight_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U test -d insight_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://test:test-only-ci@localhost:5432/insight_test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,6 +55,19 @@ jobs:
       - run: ruff format --check .
       - run: pytest -q
   worker:
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test-only-ci
+          POSTGRES_DB: insight_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U test -d insight_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://test:test-only-ci@localhost:5432/insight_test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,5 +80,6 @@ jobs:
           cache: false
       - run: test -z "$(gofmt -l .)"
       - run: go vet ./...
-      - run: go test ./...
+      - run: psql "$TEST_DATABASE_URL" -f ../api/migrations/001_initial.sql
+      - run: go test -race ./...
       - run: go build ./cmd/worker

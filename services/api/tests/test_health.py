@@ -9,5 +9,5 @@ def test_health_contract():
     assert response.json() == {"status": "ok", "service": "api"}
 
 
-def test_future_webhook_is_not_exposed():
-    assert TestClient(app).post("/v1/webhooks/cal", json={}).status_code == 404
+def test_webhook_fails_closed_without_configuration():
+    assert TestClient(app).post("/v1/webhooks/cal", json={}).status_code == 503

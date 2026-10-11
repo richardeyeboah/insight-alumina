@@ -1,31 +1,19 @@
 # Architecture
 
-## Decision: one monorepo, incremental runtime complexity
-The web, API, worker, infrastructure, and documentation share a repository to keep contracts and delivery changes reviewable together. They remain independent deployment units. Next.js/TypeScript supports a maintainable frontend; Tailwind supplies styling. FastAPI offers typed request validation and OpenAPI when a backend is justified. PostgreSQL is the planned transactional store. Go is reserved for durable asynchronous processing where concurrency and operational reliability become useful.
+The monorepo has three independently runnable services. The public Next.js site embeds Cal.com; `/admin` and a same-origin server API proxy provide the private operations UI. FastAPI authenticates requests and owns PostgreSQL booking ingestion. Go consumes durable jobs from the same PostgreSQL database; no separate queue service is required.
 
-## Phase 1: hosted scheduling
 ```text
-Customer -> Next.js website -> Cal.com event page -> calendar/confirmation
-                         (no custom backend or database)
+Visitor -> Next.js -> inline Cal.com scheduling
+Cal.com -> signed HTTPS webhook -> FastAPI -> PostgreSQL transaction
+                                            receipts + bookings + jobs
+Admin -> HttpOnly server session -> Next.js proxy -> FastAPI metrics/jobs
+Go worker -> leased PostgreSQL jobs -> snapshots / optional Ollama summary
 ```
-The implemented CTA is a normal link, which avoids loading third-party embed scripts and works without client-side JavaScript. Cal.com owns availability, conflict checks, timezone selection, booking, rescheduling, and cancellation. Confirmation on the scheduling provider is authoritative; a website click does not mean a booking completed. Payments, if required and supported by the selected Cal.com plan, are configured there rather than handled by this scaffold.
 
-## Phase 2: reliable booking ingestion (planned)
-```text
-Cal.com -> HTTPS webhook -> FastAPI -> PostgreSQL transaction
-Admin -> authenticated API -> aggregate reporting
-```
-Cal.com remains the scheduling source of truth. Verify webhook signatures over raw bytes before parsing, validate payloads, enforce a body-size limit, and persist deduplicated events durably before acknowledging success. Use a unique event key or stable provider identifier plus event type/version; define ordering and reschedule/cancellation semantics from actual provider payloads. Reconciliation against the provider handles missing/out-of-order delivery. Keep a minimum booking projection, event receipt metadata, and audited admin access. Add migrations and least-privilege DB roles. Do not store reading content or unnecessary sensitive intake answers.
+All business records start from received verified events. We store UIDs, event-type IDs, appointment timestamps/status, receipt metadata, and audited administration; no names, emails, reading notes, or card details are copied. Cal.com controls availability, booking, reschedule, cancellation, and provider confirmation. Prices/revenue are not fabricated or inferred.
 
-An admin interface and auth are not scaffolded. Select an identity provider; enforce authorization on every admin route. AI business summaries, if approved, receive aggregate/de-identified metrics only, use deterministic analytics as the source of truth, carry confidence/limitations, and have strict token/spending limits. No model provider is selected or called here.
+PostgreSQL's transaction combines receipts, projections, and pending jobs. The database queue acts as a transactional outbox and durable job store. Workers claim with FOR UPDATE SKIP LOCKED, validate lease tokens at completion, retry with jitter, and mark exhausted jobs failed. Admins can inspect and retry. Model calls are at least once under crash recovery; resulting summaries are deduplicated. A self-hosted Ollama server receives only numeric aggregates when explicitly enabled.
 
-## Phase 3: durable processing (planned)
-```text
-Webhook transaction -> booking projection + transactional outbox
-Outbox relay -> durable queue -> Go workers -> reporting/integrations
-                       failed jobs -> dead-letter queue -> operator
-```
-Use the outbox pattern to avoid losing jobs between DB commit and queue publication. Delivery is at least once; consumers must be idempotent. Bound concurrency, implement exponential backoff with jitter, cap retries, distinguish permanent failures, and provide dead-letter replay tooling. Choose a queue based on measured volume, hosting, operating cost, and team familiarity; no queue vendor is committed yet. Consider PostgreSQL-backed jobs before adding another managed service.
+Admin passwords are Argon2-hashed; sessions use random tokens with only hashes persisted, expire after eight hours, and are revoked at logout. Login attempts are globally bounded in PostgreSQL; admin writes require exact Origin. Production cookies require HTTPS. Caddy terminates TLS and keeps database/API/model services behind the network boundary. Separate database roles restrict application/worker writes. There is no MFA or multi-role authorization yet; all provisioned admins are trusted operators.
 
-## Boundaries and tradeoffs
-The web has only a public scheduling URL, never database or API credentials. Server-only secrets stay with API/worker deployments. Phase 1 avoids distributed operations but depends on the scheduling provider. Later phases add reporting control and recoverability at the cost of databases, migrations, backups, auth, monitoring, and on-call responsibility. Do not deploy architecture solely to demonstrate technology; use phase acceptance gates in the roadmap.
+The existing Vercel frontend remains usable for public booking. Production API/database/worker infrastructure must be launched on the prepared Docker server and connected before admin is live. Historical import and provider reconciliation are still operational gaps; never claim this reporting store is a complete calendar/payment ledger.
